@@ -1,7 +1,8 @@
-from datetime import datetime, timedelta, timezone
+import time
 
 import requests
 from utils import parse_timestamp, get_logger
+from metrics import MetricsCalculator
 
 
 class BaseAPIClient:
@@ -111,6 +112,46 @@ class ForexClient(BaseAPIClient):
                 'USD/RUB': usd_data['rates']['RUB'],
                 'CNY/RUB': cny_data['rates']['RUB'],
                 'iso_datetime': parse_timestamp(usd_data['time_last_updated']),
+            }
+        except Exception as e:
+            self.logger.error(f'Forex error: {e}')
+            return None
+
+class CashRBCClient(BaseAPIClient):
+    API_URL_USD = 'https://cash.rbc.ru/cash/json/cash_rates/?city=1&currency=3&deal=buy&amount=100'
+    API_URL_CNY = 'https://cash.rbc.ru/cash/json/cash_rates/?city=1&currency=423&deal=buy&amount=100'
+
+    def parse_rate(self, data):
+        rates = []
+        try:
+            for item in data['banks']:
+                if not item['rate'].get('sell'):
+                    continue
+                rates.append(float(item['rate']['sell']))
+        except Exception as e:
+            self.logger.error(f'Cash RBC get rate error for {data}: {e}')
+        return sorted(rates)
+
+    def get_rates(self):
+        try:
+            self.logger.info(f'make request {self.API_URL_USD}')
+            usd_data = requests.get(self.API_URL_USD).json()
+            usd_rates = self.parse_rate(usd_data)
+            usd_metrics = MetricsCalculator(usd_rates)
+
+            self.logger.info(f'make request {self.API_URL_CNY}')
+            cny_data = requests.get(self.API_URL_CNY).json()
+            cny_rates = self.parse_rate(cny_data)
+            cny_metrics = MetricsCalculator(cny_rates)
+
+            return {
+                'USD/RUB min': usd_metrics.calc_min(),
+                'USD/RUB p05': usd_metrics.calc_p05(),
+                'USD/RUB median': usd_metrics.calc_median(),
+                'CNY/RUB min': cny_metrics.calc_min(),
+                'CNY/RUB p05': cny_metrics.calc_p05(),
+                'CNY/RUB median': cny_metrics.calc_median(),
+                'iso_datetime': parse_timestamp(int(time.time())),
             }
         except Exception as e:
             self.logger.error(f'Forex error: {e}')

@@ -22,7 +22,7 @@ class DataHandler:
             if not rates:
                 continue
             for pair, value in rates.items():
-                if not pair.endswith('/RUB'):
+                if '/RUB' not in pair:
                     continue
                 dt = datetime.fromisoformat(rates['iso_datetime'])
                 date = dt.strftime('%Y-%m-%d')
@@ -50,7 +50,7 @@ class DataHandler:
                     if not rates:
                         continue
                     for pair, value in rates.items():
-                        if not pair.endswith('/RUB'):
+                        if '/RUB' not in pair:
                             continue
                         dt = datetime.fromisoformat(rates['iso_datetime'])
                         date = dt.strftime('%Y-%m-%d')
