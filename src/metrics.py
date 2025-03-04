@@ -1,6 +1,11 @@
 from typing import List
 import statistics
-import numpy as np
+import math
+
+
+def percentile(data, perc: int):
+    size = len(data)
+    return sorted(data)[int(math.ceil((size * perc) / 100)) - 1]
 
 
 class MetricsCalculator:
@@ -51,7 +56,7 @@ class MetricsCalculator:
         Returns:
             float: 5й перцентиль
         """
-        return np.percentile(self.values, 5)
+        return percentile(self.values, 5)
 
     def calc_min(self) -> float:
         """
