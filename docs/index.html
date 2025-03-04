@@ -71,6 +71,13 @@
             font-size: 0.9em;
         }
 
+        .full-legend {
+            margin-top: 10px;
+            color: #666;
+            font-size: 0.9em;
+            line-height: 1.5em;
+        }
+
         .source-legend {
             display: flex;
             justify-content: center;
@@ -119,6 +126,16 @@
         </div>
 
         <div class="last-update" id="last-update"></div>
+        <div class="full-legend">
+            <h3>Легенда:</h3>
+            <ul>
+                <li><b>cbr</b> — официальный курс ЦБ РФ <a href="https://www.cbr.ru/currency_base/daily/" target="_blank">ссылка</a></li>
+                <li><b>tinkoff</b> — курс валюты при переводе между своими счетами в приложении Т-Банк <a href="https://www.tbank.ru/about/exchange/" target="_blank">ссылка</a></li>
+                <li><b>ardshinbank</b> — курс обмена безналичных рублей на валюту <a href="https://ardshinbank.am/for_you/Artarjuyti-poxanakum%09?lang=en" target="_blank">ссылка</a></li>
+                <li><b>rbc_cash</b> — курс покупки наличной валюты в Москве в соответствии с топ-100 предложений cash rbc: минимальная стоимость, 5 процентиль и медиана <a href="https://cash.rbc.ru/?currency=3&city=1&deal=buy&amount=100" target="_blank">ссылка</a></li>
+                <li><b>forex</b> — данные по покупки валюты за рубли на <a href="https://www.exchangerate-api.com/" target="_blank">https://www.exchangerate-api.com/</a></li>
+            </ul>
+        </div>
     </div>
 
     <script>
@@ -127,7 +144,10 @@
             'ardshinbank': 'rgb(54, 162, 235)',
             'tinkoff': 'rgb(255, 99, 132)',
             'cbr': 'rgb(75, 192, 192)',
-            'forex': 'rgb(255, 159, 64)'
+            'forex': 'rgb(255, 159, 64)',
+            'rbc_cash min': 'rgb(213 255 209)',
+            'rbc_cash p05': 'rgb(57 220 45)',
+            'rbc_cash median': 'rgb(17 129 9)',
         };
 
         // Переменная для хранения графика
@@ -199,6 +219,12 @@
             }
         }
 
+        function getRowLabel(row) {
+            return row.rate_type != 'value'
+                ? row.source + ' ' + row.rate_type
+                : row.source;
+        }
+
         // Функция для создания графика
         function createChart(data) {
             // Получаем выбранные параметры
@@ -217,22 +243,22 @@
             }
 
             // Группируем данные по источникам
-            const sources = [...new Set(filteredData.map(row => row.source))];
+            const sources = [...new Set(filteredData.map(row => getRowLabel(row)))];
 
             // Подготавливаем данные для графика
-            const datasets = sources.map(source => {
+            const datasets = sources.map(source_label => {
                 const sourceData = filteredData
-                    .filter(row => row.source === source)
+                    .filter(row => getRowLabel(row) === source_label)
                     .sort((a, b) => new Date(a.iso_datetime) - new Date(b.iso_datetime));
 
                 return {
-                    label: source,
+                    label: source_label,
                     data: sourceData.map(row => ({
                         x: row.iso_datetime,
                         y: parseFloat(row.rate)
                     })),
-                    backgroundColor: sourceColors[source] || 'rgb(100, 100, 100)',
-                    borderColor: sourceColors[source] || 'rgb(100, 100, 100)',
+                    backgroundColor: sourceColors[source_label] || 'rgb(100, 100, 100)',
+                    borderColor: sourceColors[source_label] || 'rgb(100, 100, 100)',
                     borderWidth: 2,
                     tension: 0.1
                 };

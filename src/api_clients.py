@@ -37,8 +37,8 @@ class ArdshinbankClient(BaseAPIClient):
                 return None
 
             return {
-                'USD/RUB': USD_sell / RUR_buy,
-                'CNY/RUB': CNY_sell / RUR_buy,
+                'USD/RUB': {'value': USD_sell / RUR_buy},
+                'CNY/RUB': {'value': CNY_sell / RUR_buy},
                 'iso_datetime': parse_timestamp(data['updatedAt']),
             }
         except Exception as e:
@@ -69,8 +69,8 @@ class TinkoffClient(BaseAPIClient):
             cny_sell = self.parse_rate(cny_data)
 
             return {
-                'USD/RUB': usd_sell,
-                'CNY/RUB': cny_sell,
+                'USD/RUB': {'value': usd_sell},
+                'CNY/RUB': {'value': cny_sell},
                 'iso_datetime': parse_timestamp(usd_data['payload']['lastUpdate']['milliseconds']),
             }
         except Exception as e:
@@ -87,8 +87,8 @@ class CBRClient(BaseAPIClient):
             data = requests.get(self.API_URL).json()
 
             return {
-                'USD/RUB': data['Valute']['USD']['Value'],
-                'CNY/RUB': data['Valute']['CNY']['Value'],
+                'USD/RUB': {'value': data['Valute']['USD']['Value']},
+                'CNY/RUB': {'value': data['Valute']['CNY']['Value']},
                 'iso_datetime': parse_timestamp(data['Date']),
             }
         except Exception as e:
@@ -109,8 +109,8 @@ class ForexClient(BaseAPIClient):
             cny_data = requests.get(self.API_URL_CNY).json()
 
             return {
-                'USD/RUB': usd_data['rates']['RUB'],
-                'CNY/RUB': cny_data['rates']['RUB'],
+                'USD/RUB': {'value': usd_data['rates']['RUB']},
+                'CNY/RUB': {'value': cny_data['rates']['RUB']},
                 'iso_datetime': parse_timestamp(usd_data['time_last_updated']),
             }
         except Exception as e:
@@ -145,12 +145,16 @@ class CashRBCClient(BaseAPIClient):
             cny_metrics = MetricsCalculator(cny_rates)
 
             return {
-                'USD/RUB min': usd_metrics.calc_min(),
-                'USD/RUB p05': usd_metrics.calc_p05(),
-                'USD/RUB median': usd_metrics.calc_median(),
-                'CNY/RUB min': cny_metrics.calc_min(),
-                'CNY/RUB p05': cny_metrics.calc_p05(),
-                'CNY/RUB median': cny_metrics.calc_median(),
+                'USD/RUB': {
+                    'min': usd_metrics.calc_min(),
+                    'p05': usd_metrics.calc_p05(),
+                    'median': usd_metrics.calc_median(),
+                },
+                'CNY/RUB': {
+                    'min': cny_metrics.calc_min(),
+                    'p05': cny_metrics.calc_p05(),
+                    'median': cny_metrics.calc_median(),
+                },
                 'iso_datetime': parse_timestamp(int(time.time())),
             }
         except Exception as e:
