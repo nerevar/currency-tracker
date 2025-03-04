@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мониторинг курсов валют</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.0/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/luxon@2.0.2/build/global/luxon.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.0.0/dist/chartjs-adapter-luxon.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 400px;
+            margin-bottom: 30px;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        select,
+        button {
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            background-color: white;
+        }
+
+        button {
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        .last-update {
+            text-align: center;
+            margin-top: 10px;
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .source-legend {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .source-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .color-box {
+            width: 15px;
+            height: 15px;
+            display: inline-block;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Мониторинг курсов валют</h1>
+
+        <div class="controls">
+            <select id="currency-pair">
+                <option value="USD/RUB">USD/RUB</option>
+                <option value="CNY/RUB">CNY/RUB</option>
+            </select>
+            <select id="time-period">
+                <option value="24">За 24 часа</option>
+                <option value="48">За 48 часов</option>
+                <option value="168">За неделю</option>
+                <option value="all">За весь период</option>
+            </select>
+            <button id="refresh-btn">Обновить данные</button>
+        </div>
+
+        <div id="source-legend" class="source-legend"></div>
+
+        <div class="chart-container">
+            <canvas id="rateChart"></canvas>
+        </div>
+
+        <div class="last-update" id="last-update"></div>
+    </div>
+
+    <script>
+        // Цвета для разных источников данных
+        const sourceColors = {
+            'ardshinbank': 'rgb(54, 162, 235)',
+            'tinkoff': 'rgb(255, 99, 132)',
+            'cbr': 'rgb(75, 192, 192)',
+            'forex': 'rgb(255, 159, 64)'
+        };
+
+        // Переменная для хранения графика
+        let rateChart = null;
+
+        // Функция для загрузки и обработки CSV данных за последние N месяцев
+        async function loadCsvData(monthsToLoad = 12) {
+            try {
+                const allData = [];
+                const currentDate = new Date();
+                let loadedMonths = 0;
+
+                // Пытаемся загрузить данные за последние monthsToLoad месяцев
+                for (let i = 0; i < monthsToLoad && loadedMonths < monthsToLoad; i++) {
+                    // Вычисляем месяц, который нужно загрузить
+                    const targetDate = new Date(currentDate);
+                    targetDate.setMonth(currentDate.getMonth() - i);
+
+                    // Формируем путь к файлу YYYY-MM.csv
+                    const year = targetDate.getFullYear();
+                    // Месяц + 1, т.к. getMonth() возвращает 0-11, и форматируем с ведущим нулем
+                    const month = String(targetDate.getMonth() + 1).padStart(2, '0');
+                    const filePath = `../data/rates/${year}-${month}.csv`;
+
+                    try {
+                        const response = await fetch(filePath);
+
+                        // Если файл не найден, выходим из цикла
+                        if (!response.ok) {
+                            console.warn(`Файл ${filePath} не найден. Прекращаем загрузку.`);
+                            break; // Прерываем цикл при первой ошибке
+                        }
+
+                        const csvData = await response.text();
+
+                        // Используем PapaParse для преобразования CSV в объекты
+                        const parsedData = await new Promise((resolve) => {
+                            Papa.parse(csvData, {
+                                header: true,
+                                skipEmptyLines: true,
+                                complete: (results) => {
+                                    resolve(results.data);
+                                }
+                            });
+                        });
+
+                        // Добавляем данные в общий массив и увеличиваем счетчик загруженных месяцев
+                        allData.push(...parsedData);
+                        loadedMonths++;
+                        console.log(`Успешно загружены данные за ${year}-${month}`);
+
+                    } catch (error) {
+                        console.error(`Ошибка при загрузке ${filePath}:`, error);
+                        break; // Прерываем цикл при любой ошибке загрузки
+                    }
+                }
+
+                if (allData.length === 0) {
+                    console.error('Не удалось загрузить ни один файл с данными');
+                    return [];
+                }
+
+                console.log(`Успешно загружены данные за ${loadedMonths} месяцев. Всего записей: ${allData.length}`);
+                return allData;
+
+            } catch (error) {
+                console.error('Общая ошибка при загрузке данных:', error);
+                return [];
+            }
+        }
+
+        // Функция для создания графика
+        function createChart(data) {
+            // Получаем выбранные параметры
+            const currencyPair = document.getElementById('currency-pair').value;
+            const timePeriod = document.getElementById('time-period').value;
+
+            // Фильтруем данные по валютной паре
+            let filteredData = data.filter(row => row.currency_pair === currencyPair);
+
+            // Фильтрация по времени
+            if (timePeriod !== 'all') {
+                const hoursAgo = parseInt(timePeriod);
+                const cutoffTime = new Date();
+                cutoffTime.setHours(cutoffTime.getHours() - hoursAgo);
+                filteredData = filteredData.filter(row => new Date(row.iso_datetime) >= cutoffTime);
+            }
+
+            // Группируем данные по источникам
+            const sources = [...new Set(filteredData.map(row => row.source))];
+
+            // Подготавливаем данные для графика
+            const datasets = sources.map(source => {
+                const sourceData = filteredData
+                    .filter(row => row.source === source)
+                    .sort((a, b) => new Date(a.iso_datetime) - new Date(b.iso_datetime));
+
+                return {
+                    label: source,
+                    data: sourceData.map(row => ({
+                        x: row.iso_datetime,
+                        y: parseFloat(row.rate)
+                    })),
+                    backgroundColor: sourceColors[source] || 'rgb(100, 100, 100)',
+                    borderColor: sourceColors[source] || 'rgb(100, 100, 100)',
+                    borderWidth: 2,
+                    tension: 0.1
+                };
+            });
+
+            // Добавляем легенду источников
+            const legendContainer = document.getElementById('source-legend');
+            legendContainer.innerHTML = '';
+            sources.forEach(source => {
+                const item = document.createElement('div');
+                item.className = 'source-item';
+
+                const colorBox = document.createElement('span');
+                colorBox.className = 'color-box';
+                colorBox.style.backgroundColor = sourceColors[source] || 'rgb(100, 100, 100)';
+
+                const sourceName = document.createElement('span');
+                sourceName.textContent = source;
+
+                item.appendChild(colorBox);
+                item.appendChild(sourceName);
+                legendContainer.appendChild(item);
+            });
+
+            // Обновляем время последнего обновления
+            const lastUpdateEl = document.getElementById('last-update');
+            lastUpdateEl.textContent = `Последнее обновление: ${new Date().toLocaleString()}`;
+
+            // Настройка контекста графика
+            const ctx = document.getElementById('rateChart').getContext('2d');
+
+            // Удаляем предыдущий график если он существует
+            if (rateChart) {
+                rateChart.destroy();
+            }
+
+            // Создаем новый график
+            rateChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function (context) {
+                                    return `${context.dataset.label}: ${context.parsed.y.toFixed(4)}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'hour',
+                                displayFormats: {
+                                    hour: 'dd.MM HH:mm'
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: 'Время'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Курс'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Загрузка данных и инициализация графика
+        async function initChart() {
+            const data = await loadCsvData();
+            if (data.length > 0) {
+                createChart(data);
+            } else {
+                alert('Не удалось загрузить данные');
+            }
+        }
+
+        // Обработка события изменения выбора валютной пары или периода
+        document.getElementById('currency-pair').addEventListener('change', () => {
+            initChart();
+        });
+
+        document.getElementById('time-period').addEventListener('change', () => {
+            initChart();
+        });
+
+        // Обработка события нажатия кнопки обновления
+        document.getElementById('refresh-btn').addEventListener('click', () => {
+            initChart();
+        });
+
+        // Загружаем график при загрузке страницы
+        document.addEventListener('DOMContentLoaded', initChart);
+    </script>
+</body>
+
+</html>
