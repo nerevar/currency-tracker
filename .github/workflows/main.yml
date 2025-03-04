@@ -32,9 +32,4 @@ jobs:
             git config --global user.name "GitHub Actions"
             git add -A
             git commit --allow-empty -m "Auto-update currency data" || echo "No changes to commit"
-
-      - name: push changes
-        uses: ad-m/github-push-action@v0.6.0
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          branch: main
+            git push
