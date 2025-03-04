@@ -1,0 +1,9 @@
+[tool.ruff.lint]
+select = ["ALL"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.format]
+# Like Black, use double quotes for strings.
+quote-style = "single"

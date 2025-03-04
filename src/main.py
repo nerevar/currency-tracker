@@ -6,10 +6,10 @@ logging.basicConfig(level=logging.INFO)
 
 def main():
     clients = {
-        'arsdhinbank': ArdshinbankClient(),
+        'ardshinbank': ArdshinbankClient(),
         'tinkoff': TinkoffClient(),
         'cbr': CBRClient(),
-        'forex': ForexClient()
+        'forex': ForexClient(),
     }
 
     data = {}
