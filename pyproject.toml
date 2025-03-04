@@ -7,3 +7,6 @@ line-length = 120
 [tool.ruff.format]
 # Like Black, use double quotes for strings.
 quote-style = "single"
+
+[tool.ruff.lint.flake8-quotes]
+inline-quotes = "single"

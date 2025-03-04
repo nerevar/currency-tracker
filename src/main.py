@@ -16,11 +16,9 @@ def main():
     for name, client in clients.items():
         data[name] = client.get_rates()
 
-    print(data)
-
-    # handler = DataHandler()
-    # handler.save_to_sql(data)
-    # handler.save_to_csv(data)
+    handler = DataHandler()
+    handler.save_to_sql(data)
+    handler.save_to_csv(data)
 
 if __name__ == "__main__":
     main()

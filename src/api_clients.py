@@ -1,25 +1,13 @@
-import logging
 from datetime import datetime, timedelta, timezone
 
 import requests
-from utils import parse_timestamp
+from utils import parse_timestamp, get_logger
 
 
 class BaseAPIClient:
     def __init__(self):
         self.name = type(self).__name__
-        self.init_logging()
-
-    def init_logging(self):
-        self.logger = logging.getLogger(self.name)
-        self.logger.setLevel(logging.DEBUG)
-        self.logger.propagate = False
-
-        console = logging.StreamHandler()
-        self.logger.addHandler(console)
-
-        formatter = logging.Formatter(fmt='%(asctime)s %(name)s:%(levelname)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-        console.setFormatter(formatter)
+        self.logger = get_logger(self.name)
 
 
 class ArdshinbankClient(BaseAPIClient):
@@ -47,12 +35,10 @@ class ArdshinbankClient(BaseAPIClient):
             if not RUR_buy:
                 return None
 
-            iso_datetime, timestamp = parse_timestamp(data['updatedAt'])
             return {
                 'USD/RUB': USD_sell / RUR_buy,
                 'CNY/RUB': CNY_sell / RUR_buy,
-                'iso_datetime': iso_datetime,
-                'timestamp': timestamp,
+                'iso_datetime': parse_timestamp(data['updatedAt']),
             }
         except Exception as e:
             self.logger.error(f'{self.name} error: {e}')
@@ -81,12 +67,10 @@ class TinkoffClient(BaseAPIClient):
             cny_data = requests.get(self.API_URL_CNY).json()
             cny_sell = self.parse_rate(cny_data)
 
-            iso_datetime, timestamp = parse_timestamp(usd_data['payload']['lastUpdate']['milliseconds'])
             return {
                 'USD/RUB': usd_sell,
                 'CNY/RUB': cny_sell,
-                'iso_datetime': iso_datetime,
-                'timestamp': timestamp,
+                'iso_datetime': parse_timestamp(usd_data['payload']['lastUpdate']['milliseconds']),
             }
         except Exception as e:
             self.logger.error(f'Tinkoff error: {e}')
@@ -101,12 +85,10 @@ class CBRClient(BaseAPIClient):
             self.logger.info(f'make request {self.API_URL}')
             data = requests.get(self.API_URL).json()
 
-            iso_datetime, timestamp = parse_timestamp(data['Date'])
             return {
                 'USD/RUB': data['Valute']['USD']['Value'],
                 'CNY/RUB': data['Valute']['CNY']['Value'],
-                'iso_datetime': iso_datetime,
-                'timestamp': timestamp,
+                'iso_datetime': parse_timestamp(data['Date']),
             }
         except Exception as e:
             self.logger.error(f'CBR error: {e}')
@@ -125,12 +107,10 @@ class ForexClient(BaseAPIClient):
             self.logger.info(f'make request {self.API_URL_CNY}')
             cny_data = requests.get(self.API_URL_CNY).json()
 
-            iso_datetime, timestamp = parse_timestamp(usd_data['time_last_updated'])
             return {
                 'USD/RUB': usd_data['rates']['RUB'],
                 'CNY/RUB': cny_data['rates']['RUB'],
-                'iso_datetime': iso_datetime,
-                'timestamp': timestamp,
+                'iso_datetime': parse_timestamp(usd_data['time_last_updated']),
             }
         except Exception as e:
             self.logger.error(f'Forex error: {e}')

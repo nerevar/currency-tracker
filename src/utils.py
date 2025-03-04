@@ -1,6 +1,20 @@
+import logging
 from datetime import datetime, timedelta, timezone
 
 import dateutil.parser
+
+
+def get_logger(name: str):
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.DEBUG)
+    logger.propagate = False
+
+    console = logging.StreamHandler()
+    logger.addHandler(console)
+
+    formatter = logging.Formatter(fmt='%(asctime)s %(name)s:%(levelname)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+    console.setFormatter(formatter)
+    return logger
 
 
 def parse_timestamp(input_data):
@@ -19,7 +33,6 @@ def parse_timestamp(input_data):
         # Пытаемся использовать dateutil для разбора строки
         try:
             dt = dateutil.parser.isoparse(input_data)
-            timestamp = dt.timestamp()
         except (ValueError, OverflowError):
             raise ValueError('Unknown date format')
     else:
@@ -32,4 +45,4 @@ def parse_timestamp(input_data):
     iso_datetime = moscow_time.isoformat()
 
     # Возвращаем результат
-    return iso_datetime, int(timestamp)
+    return iso_datetime
