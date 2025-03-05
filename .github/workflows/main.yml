@@ -2,7 +2,7 @@ name: update-exchange-rates-data
 
 on:
   schedule:
-    - cron: "0 */2 * * *"  # Каждые 2 часа
+    - cron: "0 */1 * * *"  # Каждый час
   workflow_dispatch:
 
 jobs:
