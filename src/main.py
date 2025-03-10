@@ -1,4 +1,12 @@
-from api_clients import ArdshinbankClient, TinkoffClient, CBRClient, ForexClient, CashRBCClient
+import os
+from api_clients import (
+    ArdshinbankClient,
+    TinkoffClient,
+    CBRClient,
+    ForexClient,
+    CashRBCClient,
+    BestChangeClient,
+)
 from data_processor import DataHandler
 import argparse
 
@@ -18,7 +26,7 @@ def parse_args():
         '-c',
         '--client',
         action='append',
-        choices=['ardshinbank', 'tinkoff', 'cbr', 'forex', 'rbc_cash'],
+        choices=['ardshinbank', 'tinkoff', 'cbr', 'forex', 'rbc_cash', 'bestchange'],
         help='Список клиентов для получения данных (можно указать несколько раз). Если не указано, используются все клиенты',
     )
 
@@ -40,6 +48,8 @@ def main():
     # Парсинг аргументов командной строки
     args = parse_args()
 
+    BESTCHANGE_API_KEY = os.getenv('BESTCHANGE_API_KEY')
+
     # Инициализация клиентов
     all_clients = {
         'ardshinbank': ArdshinbankClient(),
@@ -47,6 +57,7 @@ def main():
         'cbr': CBRClient(),
         'forex': ForexClient(),
         'rbc_cash': CashRBCClient(),
+        'bestchange': BestChangeClient(BESTCHANGE_API_KEY),
     }
 
     # Определение списка используемых клиентов
