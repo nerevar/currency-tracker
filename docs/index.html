@@ -148,7 +148,6 @@
             'tinkoff': '#ffdd2d',
             'cbr': '#9096a3',
             'forex': 'rgb(255, 159, 64)',
-            'rbc_cash min': 'rgb(213 255 209)',
             'rbc_cash p05': '#92cfaf',
             'rbc_cash median': '#2b8288',
         };
@@ -250,6 +249,9 @@
 
             // Подготавливаем данные для графика
             const datasets = sources.map(source_label => {
+                if (source_label == 'rbc_cash min') {
+                    return {}
+                }
                 const sourceData = filteredData
                     .filter(row => getRowLabel(row) === source_label)
                     .sort((a, b) => new Date(a.iso_datetime) - new Date(b.iso_datetime));
@@ -271,6 +273,10 @@
             const legendContainer = document.getElementById('source-legend');
             legendContainer.innerHTML = '';
             sources.forEach(source => {
+                if (source == 'rbc_cash min') {
+                    return {}
+                }
+
                 const item = document.createElement('div');
                 item.className = 'source-item';
 
