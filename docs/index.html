@@ -462,26 +462,6 @@
             // Устанавливаем диапазон по умолчанию на последний месяц
             chart.xAxis[0].setExtremes(oneMonthAgo, now);
             
-            // Добавляем обработчик для кнопки переключения всех линий
-            const toggleAllBtn = document.getElementById('toggle-all-btn');
-            if (toggleAllBtn) {
-                // Удаляем старый обработчик, если он есть
-                toggleAllBtn.onclick = null;
-                toggleAllBtn.addEventListener('click', function() {
-                    // Проверяем, все ли линии видимы
-                    const allVisible = chart.series.every(function(s) { return s.visible; });
-                    const allHidden = chart.series.every(function(s) { return !s.visible; });
-                    
-                    // Если все видимы или смешанное состояние - скрываем все
-                    // Если все скрыты - показываем все
-                    const shouldShow = allHidden;
-                    
-                    chart.series.forEach(function(series) {
-                        series.setVisible(shouldShow, false);
-                    });
-                    chart.redraw();
-                });
-            }
         }
 
         // Загрузка данных и инициализация графика
@@ -523,6 +503,28 @@
 
         // Загружаем график при загрузке страницы (по умолчанию USD)
         document.addEventListener('DOMContentLoaded', () => {
+            // Обработчик для кнопки переключения всех линий
+            // Добавляем один раз, он будет использовать глобальную переменную chart
+            const toggleAllBtn = document.getElementById('toggle-all-btn');
+            if (toggleAllBtn) {
+                toggleAllBtn.addEventListener('click', function() {
+                    if (!chart || !chart.series) {
+                        return;
+                    }
+                    
+                    // Проверяем, все ли линии скрыты
+                    const allHidden = chart.series.every(function(s) { return !s.visible; });
+                    
+                    // Если все скрыты - показываем все, иначе скрываем все
+                    const shouldShow = allHidden;
+                    
+                    chart.series.forEach(function(series) {
+                        series.setVisible(shouldShow, false);
+                    });
+                    chart.redraw();
+                });
+            }
+            
             setActiveButton('usd-btn');
             initChart(['USD/RUB', 'USDT_TRC20/RUB']);
         });
