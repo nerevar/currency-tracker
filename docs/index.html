@@ -356,6 +356,73 @@
                 });
             });
 
+            // Добавляем линию разницы между ardshinbank USD/RUB и cbr USD/RUB
+            if (currencyPairs.includes('USD/RUB')) {
+                const usdData = pairData.filter(row => row.currency_pair === 'USD/RUB');
+                
+                // Находим данные для ardshinbank и cbr
+                const ardshinbankData = usdData
+                    .filter(row => row.source === 'ardshinbank' && row.rate_type === 'value')
+                    .sort((a, b) => new Date(a.iso_datetime) - new Date(b.iso_datetime));
+                
+                const cbrData = usdData
+                    .filter(row => row.source === 'cbr' && row.rate_type === 'value')
+                    .sort((a, b) => new Date(a.iso_datetime) - new Date(b.iso_datetime));
+                
+                if (ardshinbankData.length > 0 && cbrData.length > 0) {
+                    // Создаем карту временных точек для быстрого поиска
+                    const cbrMap = new Map();
+                    cbrData.forEach(row => {
+                        const time = new Date(row.iso_datetime).getTime();
+                        cbrMap.set(time, parseFloat(row.rate));
+                    });
+                    
+                    // Вычисляем разницу для каждой точки ardshinbank
+                    const diffData = [];
+                    ardshinbankData.forEach(row => {
+                        const time = new Date(row.iso_datetime).getTime();
+                        const ardshinbankRate = parseFloat(row.rate);
+                        
+                        // Ищем ближайшую точку cbr (до или в момент времени)
+                        let cbrRate = null;
+                        let closestTime = null;
+                        let closestDistance = Infinity;
+                        
+                        cbrMap.forEach((rate, cbrTime) => {
+                            if (cbrTime <= time) {
+                                const distance = time - cbrTime;
+                                if (distance < closestDistance) {
+                                    closestDistance = distance;
+                                    closestTime = cbrTime;
+                                    cbrRate = rate;
+                                }
+                            }
+                        });
+                        
+                        // Если нашли соответствующую точку cbr, вычисляем разницу
+                        if (cbrRate !== null) {
+                            const difference = ardshinbankRate - cbrRate;
+                            diffData.push([time, difference]);
+                        }
+                    });
+                    
+                    if (diffData.length > 0) {
+                        series.push({
+                            name: 'USD/RUB - Разница (ardshinbank - cbr)',
+                            data: diffData,
+                            color: '#ff6b6b',
+                            visible: false, // По умолчанию скрыта
+                            lineWidth: 2,
+                            marker: {
+                                enabled: false,
+                                radius: 2
+                            },
+                            yAxis: 0
+                        });
+                    }
+                }
+            }
+
             // Обновляем время последнего обновления
             const lastUpdateEl = document.getElementById('last-update');
             lastUpdateEl.textContent = `Последнее обновление: ${new Date().toLocaleString()}`;
