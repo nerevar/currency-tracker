@@ -6,10 +6,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Мониторинг курсов валют</title>
     <link rel="shortcut icon" type="image/png" href="favicon.png">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://code.highcharts.com/stock/highstock.js"></script>
+    <script src="https://code.highcharts.com/stock/modules/exporting.js"></script>
+    <script src="https://code.highcharts.com/stock/modules/accessibility.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.0/papaparse.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/luxon@2.0.2/build/global/luxon.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.0.0/dist/chartjs-adapter-luxon.min.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -19,7 +19,7 @@
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
             background-color: white;
             padding: 20px;
@@ -34,7 +34,7 @@
 
         .chart-container {
             position: relative;
-            height: 400px;
+            height: 600px;
             margin-bottom: 30px;
         }
 
@@ -46,23 +46,26 @@
             flex-wrap: wrap;
         }
 
-        select,
         button {
-            padding: 8px 12px;
+            padding: 10px 24px;
             border-radius: 4px;
             border: 1px solid #ddd;
-            background-color: white;
-        }
-
-        button {
-            cursor: pointer;
             background-color: #4CAF50;
             color: white;
+            cursor: pointer;
             border: none;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s;
         }
 
         button:hover {
             background-color: #45a049;
+        }
+
+        button.active {
+            background-color: #2e7d32;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
         }
 
         .last-update {
@@ -73,31 +76,10 @@
         }
 
         .full-legend {
-            margin-top: 10px;
+            margin-top: 20px;
             color: #666;
             font-size: 0.9em;
             line-height: 1.5em;
-        }
-
-        .source-legend {
-            display: flex;
-            justify-content: center;
-            gap: 15px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-        }
-
-        .source-item {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .color-box {
-            width: 15px;
-            height: 15px;
-            display: inline-block;
-            border-radius: 3px;
         }
     </style>
 </head>
@@ -107,27 +89,11 @@
         <h1>Мониторинг курсов валют</h1>
 
         <div class="controls">
-            <select id="currency-pair">
-                <option value="USD/RUB">USD/RUB</option>
-                <option value="CNY/RUB">CNY/RUB</option>
-                <option value="USDT_TRC20/RUB">USDT_TRC20/RUB</option>
-            </select>
-            <select id="time-period">
-                <option value="24">За 24 часа</option>
-                <option value="48">За 48 часов</option>
-                <option value="168" selected="selected">За неделю</option>
-                <option value="672">За месяц</option>
-                <option value="8760">За год</option>
-                <option value="all">За весь период</option>
-            </select>
-            <button id="refresh-btn">Обновить данные</button>
+            <button id="usd-btn">USD</button>
+            <button id="cny-btn">CNY</button>
         </div>
 
-        <div id="source-legend" class="source-legend"></div>
-
-        <div class="chart-container">
-            <canvas id="rateChart"></canvas>
-        </div>
+        <div class="chart-container" id="chart-container"></div>
 
         <div class="last-update" id="last-update"></div>
         <div class="full-legend">
@@ -154,7 +120,19 @@
         };
 
         // Переменная для хранения графика
-        let rateChart = null;
+        let chart = null;
+
+        // Функция для получения метки ряда
+        function getRowLabel(row) {
+            return row.rate_type != 'value'
+                ? row.source + ' ' + row.rate_type
+                : row.source;
+        }
+
+        // Функция для получения полного имени серии (currency_pair + source_label)
+        function getSeriesName(currencyPair, sourceLabel) {
+            return `${currencyPair} - ${sourceLabel}`;
+        }
 
         // Функция для загрузки и обработки CSV данных за последние N месяцев
         async function loadCsvData(monthsToLoad = 12) {
@@ -222,165 +200,198 @@
             }
         }
 
-        function getRowLabel(row) {
-            return row.rate_type != 'value'
-                ? row.source + ' ' + row.rate_type
-                : row.source;
-        }
-
         // Функция для создания графика
-        function createChart(data) {
-            // Получаем выбранные параметры
-            const currencyPair = document.getElementById('currency-pair').value;
-            const timePeriod = document.getElementById('time-period').value;
-
-            // Фильтруем данные по валютной паре
-            let filteredData = data.filter(row => row.currency_pair === currencyPair);
-
-            // Фильтрация по времени
-            if (timePeriod !== 'all') {
-                const hoursAgo = parseInt(timePeriod);
-                const cutoffTime = new Date();
-                cutoffTime.setHours(cutoffTime.getHours() - hoursAgo);
-                filteredData = filteredData.filter(row => new Date(row.iso_datetime) >= cutoffTime);
+        function createChart(data, targetCurrencyPair) {
+            // Фильтруем данные только для выбранной валютной пары
+            const pairData = data.filter(row => row.currency_pair === targetCurrencyPair);
+            
+            if (pairData.length === 0) {
+                console.warn(`Нет данных для валютной пары: ${targetCurrencyPair}`);
+                return;
             }
-
-            // Группируем данные по источникам
-            const sources = [...new Set(filteredData.map(row => getRowLabel(row)))];
-
-            // Подготавливаем данные для графика
-            const datasets = sources.map(source_label => {
-                if (source_label == 'rbc_cash min') {
-                    return {}
+            
+            // Подготавливаем серии только для выбранной валютной пары
+            const series = [];
+            
+            // Получаем уникальные источники для этой валютной пары
+            const sources = [...new Set(pairData.map(row => getRowLabel(row)))];
+            
+            sources.forEach(sourceLabel => {
+                // Пропускаем rbc_cash min
+                if (sourceLabel === 'rbc_cash min') {
+                    return;
                 }
-                const sourceData = filteredData
-                    .filter(row => getRowLabel(row) === source_label)
+                
+                // Фильтруем данные для этого источника
+                const sourceData = pairData
+                    .filter(row => getRowLabel(row) === sourceLabel)
                     .sort((a, b) => new Date(a.iso_datetime) - new Date(b.iso_datetime));
-
-                return {
-                    label: source_label,
-                    data: sourceData.map(row => ({
-                        x: row.iso_datetime,
-                        y: parseFloat(row.rate)
-                    })),
-                    backgroundColor: sourceColors[source_label] || 'rgb(100, 100, 100)',
-                    borderColor: sourceColors[source_label] || 'rgb(100, 100, 100)',
-                    borderWidth: 2,
-                    tension: 0.1
-                };
-            });
-
-            // Добавляем легенду источников
-            const legendContainer = document.getElementById('source-legend');
-            legendContainer.innerHTML = '';
-            sources.forEach(source => {
-                if (source == 'rbc_cash min') {
-                    return {}
+                
+                if (sourceData.length === 0) {
+                    return;
                 }
-
-                const item = document.createElement('div');
-                item.className = 'source-item';
-
-                const colorBox = document.createElement('span');
-                colorBox.className = 'color-box';
-                colorBox.style.backgroundColor = sourceColors[source] || 'rgb(100, 100, 100)';
-
-                const sourceName = document.createElement('span');
-                sourceName.textContent = source;
-
-                item.appendChild(colorBox);
-                item.appendChild(sourceName);
-                legendContainer.appendChild(item);
+                
+                // Преобразуем данные в формат Highcharts
+                const seriesData = sourceData.map(row => [
+                    new Date(row.iso_datetime).getTime(),
+                    parseFloat(row.rate)
+                ]);
+                
+                // Получаем цвет для источника
+                const color = sourceColors[sourceLabel] || 'rgb(100, 100, 100)';
+                
+                series.push({
+                    name: getSeriesName(targetCurrencyPair, sourceLabel),
+                    data: seriesData,
+                    color: color,
+                    visible: true,
+                    lineWidth: 2,
+                    marker: {
+                        enabled: false,
+                        radius: 2
+                    }
+                });
             });
 
             // Обновляем время последнего обновления
             const lastUpdateEl = document.getElementById('last-update');
             lastUpdateEl.textContent = `Последнее обновление: ${new Date().toLocaleString()}`;
 
-            // Настройка контекста графика
-            const ctx = document.getElementById('rateChart').getContext('2d');
+            // Вычисляем диапазон по умолчанию (последний месяц)
+            const now = new Date().getTime();
+            const oneMonthAgo = now - (30 * 24 * 60 * 60 * 1000);
 
             // Удаляем предыдущий график если он существует
-            if (rateChart) {
-                rateChart.destroy();
+            if (chart) {
+                chart.destroy();
             }
 
             // Создаем новый график
-            rateChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    datasets: datasets
+            chart = Highcharts.stockChart('chart-container', {
+                chart: {
+                    height: 600
                 },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    interaction: {
-                        mode: 'index',
-                        intersect: false
-                    },
-                    plugins: {
-                        legend: {
-                            display: false
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: function (context) {
-                                    return `${context.dataset.label}: ${context.parsed.y.toFixed(4)}`;
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        x: {
-                            type: 'time',
-                            time: {
-                                unit: 'hour',
-                                displayFormats: {
-                                    hour: 'dd.MM HH:mm'
-                                }
-                            },
-                            title: {
-                                display: true,
-                                text: 'Время'
-                            }
-                        },
-                        y: {
-                            title: {
-                                display: true,
-                                text: 'Курс'
-                            }
-                        }
+                rangeSelector: {
+                    selected: 3, // По умолчанию выбран "1M"
+                    buttons: [{
+                        type: 'day',
+                        count: 1,
+                        text: '1д'
+                    }, {
+                        type: 'day',
+                        count: 7,
+                        text: '7д'
+                    }, {
+                        type: 'month',
+                        count: 1,
+                        text: '1М'
+                    }, {
+                        type: 'month',
+                        count: 3,
+                        text: '3М'
+                    }, {
+                        type: 'year',
+                        count: 1,
+                        text: '1Г'
+                    }, {
+                        type: 'all',
+                        text: 'Все'
+                    }]
+                },
+                navigator: {
+                    enabled: true,
+                    height: 60
+                },
+                scrollbar: {
+                    enabled: true
+                },
+                xAxis: {
+                    type: 'datetime',
+                    title: {
+                        text: 'Время'
                     }
+                },
+                yAxis: {
+                    title: {
+                        text: 'Курс'
+                    },
+                    labels: {
+                        format: '{value:.2f}'
+                    }
+                },
+                tooltip: {
+                    shared: true,
+                    split: false,
+                    valueDecimals: 4,
+                    xDateFormat: '%d.%m.%Y %H:%M'
+                },
+                legend: {
+                    enabled: true,
+                    align: 'center',
+                    verticalAlign: 'bottom',
+                    layout: 'horizontal',
+                    itemStyle: {
+                        fontSize: '11px'
+                    }
+                },
+                plotOptions: {
+                    series: {
+                        showInNavigator: true,
+                        turboThreshold: 10000
+                    }
+                },
+                series: series,
+                credits: {
+                    enabled: false
                 }
             });
+
+            // Устанавливаем диапазон по умолчанию на последний месяц
+            chart.xAxis[0].setExtremes(oneMonthAgo, now);
         }
 
         // Загрузка данных и инициализация графика
-        async function initChart() {
+        async function initChart(currencyPair) {
             const data = await loadCsvData();
             if (data.length > 0) {
-                createChart(data);
+                createChart(data, currencyPair);
             } else {
                 alert('Не удалось загрузить данные');
             }
         }
 
-        // Обработка события изменения выбора валютной пары или периода
-        document.getElementById('currency-pair').addEventListener('change', () => {
-            initChart();
+        // Функция для обновления активной кнопки
+        function setActiveButton(activeId) {
+            const usdBtn = document.getElementById('usd-btn');
+            const cnyBtn = document.getElementById('cny-btn');
+            
+            usdBtn.classList.remove('active');
+            cnyBtn.classList.remove('active');
+            
+            if (activeId === 'usd-btn') {
+                usdBtn.classList.add('active');
+            } else if (activeId === 'cny-btn') {
+                cnyBtn.classList.add('active');
+            }
+        }
+
+        // Обработка события нажатия кнопки USD
+        document.getElementById('usd-btn').addEventListener('click', () => {
+            setActiveButton('usd-btn');
+            initChart('USD/RUB');
         });
 
-        document.getElementById('time-period').addEventListener('change', () => {
-            initChart();
+        // Обработка события нажатия кнопки CNY
+        document.getElementById('cny-btn').addEventListener('click', () => {
+            setActiveButton('cny-btn');
+            initChart('CNY/RUB');
         });
 
-        // Обработка события нажатия кнопки обновления
-        document.getElementById('refresh-btn').addEventListener('click', () => {
-            initChart();
+        // Загружаем график при загрузке страницы (по умолчанию USD)
+        document.addEventListener('DOMContentLoaded', () => {
+            setActiveButton('usd-btn');
+            initChart('USD/RUB');
         });
-
-        // Загружаем график при загрузке страницы
-        document.addEventListener('DOMContentLoaded', initChart);
     </script>
 </body>
 
