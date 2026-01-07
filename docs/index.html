@@ -38,6 +38,41 @@
             margin-bottom: 30px;
         }
 
+        .loader {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1000;
+            display: none;
+        }
+
+        .loader.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #4CAF50;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loader-text {
+            margin-top: 15px;
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+        }
+
         .controls {
             display: flex;
             justify-content: center;
@@ -127,7 +162,12 @@
             </button>
         </div>
 
-        <div class="chart-container" id="chart-container"></div>
+        <div class="chart-container" id="chart-container">
+            <div class="loader" id="loader">
+                <div class="spinner"></div>
+                <div class="loader-text">Загрузка данных...</div>
+            </div>
+        </div>
 
         <div class="last-update" id="last-update"></div>
         <div class="full-legend">
@@ -155,6 +195,21 @@
 
         // Переменная для хранения графика
         let chart = null;
+
+        // Функции для управления прелоадером
+        function showLoader() {
+            const loader = document.getElementById('loader');
+            if (loader) {
+                loader.classList.add('active');
+            }
+        }
+
+        function hideLoader() {
+            const loader = document.getElementById('loader');
+            if (loader) {
+                loader.classList.remove('active');
+            }
+        }
 
         // Функция для получения метки ряда
         function getRowLabel(row) {
@@ -466,11 +521,16 @@
 
         // Загрузка данных и инициализация графика
         async function initChart(currencyPairs) {
-            const data = await loadCsvData();
-            if (data.length > 0) {
-                createChart(data, currencyPairs);
-            } else {
-                alert('Не удалось загрузить данные');
+            showLoader();
+            try {
+                const data = await loadCsvData();
+                if (data.length > 0) {
+                    createChart(data, currencyPairs);
+                } else {
+                    alert('Не удалось загрузить данные');
+                }
+            } finally {
+                hideLoader();
             }
         }
 
