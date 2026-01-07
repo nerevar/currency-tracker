@@ -41,6 +41,7 @@
         .controls {
             display: flex;
             justify-content: center;
+            align-items: center;
             margin-bottom: 20px;
             gap: 20px;
             flex-wrap: wrap;
@@ -81,6 +82,33 @@
             font-size: 0.9em;
             line-height: 1.5em;
         }
+
+        .toggle-all-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+            font-size: 18px;
+            transition: color 0.2s;
+        }
+
+        .toggle-all-btn:hover {
+            color: #333;
+        }
+
+        .toggle-all-btn svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .currency-icon {
+            margin-right: 6px;
+            font-size: 18px;
+        }
     </style>
 </head>
 
@@ -89,8 +117,14 @@
         <h1>Мониторинг курсов валют</h1>
 
         <div class="controls">
-            <button id="usd-btn">USD</button>
-            <button id="cny-btn">CNY</button>
+            <button id="usd-btn"><span class="currency-icon">$</span>USD</button>
+            <button id="cny-btn"><span class="currency-icon">¥</span>CNY</button>
+            <button class="toggle-all-btn" id="toggle-all-btn" title="Переключить видимость всех линий">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+            </button>
         </div>
 
         <div class="chart-container" id="chart-container"></div>
@@ -201,55 +235,69 @@
         }
 
         // Функция для создания графика
-        function createChart(data, targetCurrencyPair) {
-            // Фильтруем данные только для выбранной валютной пары
-            const pairData = data.filter(row => row.currency_pair === targetCurrencyPair);
+        function createChart(data, targetCurrencyPairs) {
+            // Преобразуем в массив, если передан один элемент
+            const currencyPairs = Array.isArray(targetCurrencyPairs) 
+                ? targetCurrencyPairs 
+                : [targetCurrencyPairs];
+            
+            // Фильтруем данные для выбранных валютных пар
+            const pairData = data.filter(row => currencyPairs.includes(row.currency_pair));
             
             if (pairData.length === 0) {
-                console.warn(`Нет данных для валютной пары: ${targetCurrencyPair}`);
+                console.warn(`Нет данных для валютных пар: ${currencyPairs.join(', ')}`);
                 return;
             }
             
-            // Подготавливаем серии только для выбранной валютной пары
+            // Подготавливаем серии для всех выбранных валютных пар
             const series = [];
             
-            // Получаем уникальные источники для этой валютной пары
-            const sources = [...new Set(pairData.map(row => getRowLabel(row)))];
-            
-            sources.forEach(sourceLabel => {
-                // Пропускаем rbc_cash min
-                if (sourceLabel === 'rbc_cash min') {
+            // Обрабатываем каждую валютную пару отдельно
+            currencyPairs.forEach(currencyPair => {
+                const currencyData = pairData.filter(row => row.currency_pair === currencyPair);
+                
+                if (currencyData.length === 0) {
                     return;
                 }
                 
-                // Фильтруем данные для этого источника
-                const sourceData = pairData
-                    .filter(row => getRowLabel(row) === sourceLabel)
-                    .sort((a, b) => new Date(a.iso_datetime) - new Date(b.iso_datetime));
+                // Получаем уникальные источники для этой валютной пары
+                const sources = [...new Set(currencyData.map(row => getRowLabel(row)))];
                 
-                if (sourceData.length === 0) {
-                    return;
-                }
-                
-                // Преобразуем данные в формат Highcharts
-                const seriesData = sourceData.map(row => [
-                    new Date(row.iso_datetime).getTime(),
-                    parseFloat(row.rate)
-                ]);
-                
-                // Получаем цвет для источника
-                const color = sourceColors[sourceLabel] || 'rgb(100, 100, 100)';
-                
-                series.push({
-                    name: getSeriesName(targetCurrencyPair, sourceLabel),
-                    data: seriesData,
-                    color: color,
-                    visible: true,
-                    lineWidth: 2,
-                    marker: {
-                        enabled: false,
-                        radius: 2
+                sources.forEach(sourceLabel => {
+                    // Пропускаем rbc_cash min
+                    if (sourceLabel === 'rbc_cash min') {
+                        return;
                     }
+                    
+                    // Фильтруем данные для этого источника
+                    const sourceData = currencyData
+                        .filter(row => getRowLabel(row) === sourceLabel)
+                        .sort((a, b) => new Date(a.iso_datetime) - new Date(b.iso_datetime));
+                    
+                    if (sourceData.length === 0) {
+                        return;
+                    }
+                    
+                    // Преобразуем данные в формат Highcharts
+                    const seriesData = sourceData.map(row => [
+                        new Date(row.iso_datetime).getTime(),
+                        parseFloat(row.rate)
+                    ]);
+                    
+                    // Получаем цвет для источника
+                    const color = sourceColors[sourceLabel] || 'rgb(100, 100, 100)';
+                    
+                    series.push({
+                        name: getSeriesName(currencyPair, sourceLabel),
+                        data: seriesData,
+                        color: color,
+                        visible: true,
+                        lineWidth: 2,
+                        marker: {
+                            enabled: false,
+                            radius: 2
+                        }
+                    });
                 });
             });
 
@@ -276,31 +324,35 @@
                     buttons: [{
                         type: 'day',
                         count: 1,
-                        text: '1д'
+                        text: '1d'
                     }, {
                         type: 'day',
                         count: 7,
-                        text: '7д'
+                        text: '7d'
                     }, {
                         type: 'month',
                         count: 1,
-                        text: '1М'
+                        text: '1M'
                     }, {
                         type: 'month',
                         count: 3,
                         text: '3М'
                     }, {
+                        type: 'month',
+                        count: 6,
+                        text: '6М'
+                    }, {
                         type: 'year',
                         count: 1,
-                        text: '1Г'
+                        text: '1Y'
                     }, {
                         type: 'all',
-                        text: 'Все'
+                        text: 'All'
                     }]
                 },
                 navigator: {
                     enabled: true,
-                    height: 60
+                    height: 40
                 },
                 scrollbar: {
                     enabled: true
@@ -323,7 +375,68 @@
                     shared: true,
                     split: false,
                     valueDecimals: 4,
-                    xDateFormat: '%d.%m.%Y %H:%M'
+                    xDateFormat: '%d.%m.%Y %H:%M',
+                    useHTML: true,
+                    formatter: function() {
+                        const x = this.x;
+                        const chart = this.points[0].series.chart;
+                        const dateStr = Highcharts.dateFormat('%d.%m.%Y %H:%M', x);
+                        
+                        // Собираем все точки с данными
+                        const pointsData = [];
+                        
+                        chart.series.forEach(function(series) {
+                            if (!series.visible) {
+                                return; // Пропускаем скрытые серии
+                            }
+                            
+                            // Ищем ближайшую точку данных <= x
+                            let closestPoint = null;
+                            let closestDistance = Infinity;
+                            
+                            series.data.forEach(function(point) {
+                                const pointX = point.x;
+                                if (pointX <= x) {
+                                    const distance = x - pointX;
+                                    if (distance < closestDistance) {
+                                        closestDistance = distance;
+                                        closestPoint = point;
+                                    }
+                                }
+                            });
+                            
+                            // Если нашли точку, добавляем её в массив
+                            if (closestPoint) {
+                                pointsData.push({
+                                    name: series.name,
+                                    value: closestPoint.y,
+                                    color: series.color
+                                });
+                            }
+                        });
+                        
+                        // Сортируем по убыванию курса
+                        pointsData.sort((a, b) => b.value - a.value);
+                        
+                        // Формируем HTML с таблицей для выравнивания
+                        let tooltipHTML = '<span>' + dateStr + '</span><br/>';
+                        tooltipHTML += '<table style="margin-top: 5px;">';
+                        
+                        pointsData.forEach(function(point) {
+                            const value = point.value.toFixed(4);
+                            tooltipHTML += '<tr>';
+                            tooltipHTML += '<td style="padding-right: 10px;">';
+                            tooltipHTML += '<span style="color:' + point.color + '">●</span> ';
+                            tooltipHTML += '<span>' + point.name + '</span>';
+                            tooltipHTML += '</td>';
+                            tooltipHTML += '<td style="text-align: left; font-weight: bold;">' + value + '</td>';
+                            tooltipHTML += '</tr>';
+                        });
+                        
+                        tooltipHTML += '</table>';
+                        
+                        return tooltipHTML;
+                    }
                 },
                 legend: {
                     enabled: true,
@@ -348,13 +461,34 @@
 
             // Устанавливаем диапазон по умолчанию на последний месяц
             chart.xAxis[0].setExtremes(oneMonthAgo, now);
+            
+            // Добавляем обработчик для кнопки переключения всех линий
+            const toggleAllBtn = document.getElementById('toggle-all-btn');
+            if (toggleAllBtn) {
+                // Удаляем старый обработчик, если он есть
+                toggleAllBtn.onclick = null;
+                toggleAllBtn.addEventListener('click', function() {
+                    // Проверяем, все ли линии видимы
+                    const allVisible = chart.series.every(function(s) { return s.visible; });
+                    const allHidden = chart.series.every(function(s) { return !s.visible; });
+                    
+                    // Если все видимы или смешанное состояние - скрываем все
+                    // Если все скрыты - показываем все
+                    const shouldShow = allHidden;
+                    
+                    chart.series.forEach(function(series) {
+                        series.setVisible(shouldShow, false);
+                    });
+                    chart.redraw();
+                });
+            }
         }
 
         // Загрузка данных и инициализация графика
-        async function initChart(currencyPair) {
+        async function initChart(currencyPairs) {
             const data = await loadCsvData();
             if (data.length > 0) {
-                createChart(data, currencyPair);
+                createChart(data, currencyPairs);
             } else {
                 alert('Не удалось загрузить данные');
             }
@@ -378,7 +512,7 @@
         // Обработка события нажатия кнопки USD
         document.getElementById('usd-btn').addEventListener('click', () => {
             setActiveButton('usd-btn');
-            initChart('USD/RUB');
+            initChart(['USD/RUB', 'USDT_TRC20/RUB']);
         });
 
         // Обработка события нажатия кнопки CNY
@@ -390,7 +524,7 @@
         // Загружаем график при загрузке страницы (по умолчанию USD)
         document.addEventListener('DOMContentLoaded', () => {
             setActiveButton('usd-btn');
-            initChart('USD/RUB');
+            initChart(['USD/RUB', 'USDT_TRC20/RUB']);
         });
     </script>
 </body>
